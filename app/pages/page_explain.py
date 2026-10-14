@@ -111,7 +111,7 @@ def render(svc):
         try:
             X_trans = svc.preprocess(sel_raw)
             st.dataframe(X_trans.T.rename(columns={X_trans.index[0]: "scaled value"}),
-                         use_container_width=True)
+                         width='stretch')
         except Exception as e:
             st.warning(f"Could not display preprocessed values: {e}")
 
@@ -139,7 +139,7 @@ def render(svc):
         fig_rf = _shap_waterfall(sv, fnames, fvals, ev,
                                  title=f"RF SHAP — P(ATTACK) contribution (Record {sel_row_id})",
                                  n_top=n_top)
-        st.plotly_chart(fig_rf, use_container_width=True)
+        st.plotly_chart(fig_rf, width='stretch')
 
         # Top contributors table
         sv_arr = np.array(sv)
@@ -150,7 +150,7 @@ def render(svc):
             "SHAP Contribution": [round(float(sv_arr[i]), 6) for i in order],
             "Direction": ["→ ATTACK" if sv_arr[i] > 0 else "→ BENIGN" for i in order],
         })
-        st.dataframe(shap_df, use_container_width=True, hide_index=True)
+        st.dataframe(shap_df, width='stretch', hide_index=True)
 
         st.caption(
             f"Base value (expected model output): {ev:.4f} | "
@@ -198,7 +198,7 @@ def render(svc):
                 title=f"XGBoost SHAP — Predicted class: {pred_class} (Record {sel_row_id})",
                 n_top=n_top_xgb,
             )
-            st.plotly_chart(fig_xgb, use_container_width=True)
+            st.plotly_chart(fig_xgb, width='stretch')
 
             # Heatmap: all classes vs top features
             if sv_matrix.ndim == 2 and len(class_names) > 1:
@@ -222,7 +222,7 @@ def render(svc):
                         xaxis_tickangle=-35,
                         template="plotly_white",
                     )
-                    st.plotly_chart(heat_fig, use_container_width=True)
+                    st.plotly_chart(heat_fig, width='stretch')
 
             st.caption(f"Model: {xgb_explanation['model']}")
         else:

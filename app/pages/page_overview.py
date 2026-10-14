@@ -116,7 +116,7 @@ def render(svc):
                 height=380, template="plotly_white",
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
     else:
         st.info("Binary evaluation report not available.")
 
@@ -147,7 +147,7 @@ def render(svc):
                 yaxis=dict(range=[0, 1.15], title="F1-Score"),
                 xaxis_tickangle=-35, height=420, template="plotly_white",
             )
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width='stretch')
             st.caption("Green ≥ 0.90 · Yellow ≥ 0.70 · Red < 0.70")
     else:
         st.info("Attack evaluation report not available.")
@@ -181,7 +181,7 @@ def render(svc):
     if svc.selected_features:
         with st.expander(f"View all {len(svc.selected_features)} selected features"):
             feat_df = pd.DataFrame({"Feature": svc.selected_features, "Index": range(1, len(svc.selected_features)+1)})
-            st.dataframe(feat_df.set_index("Index"), use_container_width=True)
+            st.dataframe(feat_df.set_index("Index"), width='stretch')
 
     # ── Attack classes ────────────────────────────────────────────────────────
     if svc.status.class_mapping_ok:

@@ -19,7 +19,7 @@ def render(svc):
         ok = "MISSING" not in status_text and "Error" not in status_text
         rows.append({"Artifact": name, "Status": status_text, "OK": "✅" if ok else "❌"})
     art_df = pd.DataFrame(rows)
-    st.dataframe(art_df.set_index("OK"), use_container_width=True)
+    st.dataframe(art_df.set_index("OK"), width='stretch')
 
     # ── Errors and warnings ───────────────────────────────────────────────────
     if svc.status.errors:
@@ -50,7 +50,7 @@ def render(svc):
                 "Exists": "✅",
             })
     if file_rows:
-        st.dataframe(pd.DataFrame(file_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(file_rows), width='stretch', hide_index=True)
     else:
         st.warning("No artifact files found.")
 
@@ -62,7 +62,7 @@ def render(svc):
             "#": range(1, len(svc.selected_features) + 1),
             "Feature Name": svc.selected_features,
         }).set_index("#")
-        st.dataframe(feat_df, use_container_width=True)
+        st.dataframe(feat_df, width='stretch')
 
     # ── Class mapping ─────────────────────────────────────────────────────────
     if svc.status.class_mapping_ok:
@@ -73,7 +73,7 @@ def render(svc):
             {"Code": int(k), "Attack Class": v}
             for k, v in int_to_class.items()
         ]).sort_values("Code")
-        st.dataframe(cls_df, use_container_width=True, hide_index=True)
+        st.dataframe(cls_df, width='stretch', hide_index=True)
 
     # ── Preprocessor details ──────────────────────────────────────────────────
     if svc.preprocessor is not None:
@@ -101,7 +101,7 @@ def render(svc):
                 for k, v in p.impute_medians_.items()
                 if k in svc.selected_features
             ])
-            st.dataframe(med_df, use_container_width=True, hide_index=True)
+            st.dataframe(med_df, width='stretch', hide_index=True)
 
     # ── Environment info ──────────────────────────────────────────────────────
     st.markdown("---")
@@ -135,7 +135,7 @@ def render(svc):
     except Exception: pass
 
     env_df = pd.DataFrame(packages, columns=["Package", "Version"])
-    st.dataframe(env_df, use_container_width=True, hide_index=True)
+    st.dataframe(env_df, width='stretch', hide_index=True)
 
     # ── Setup and troubleshooting ─────────────────────────────────────────────
     st.markdown("---")
@@ -192,7 +192,7 @@ artifacts/
         with st.expander("View required columns"):
             st.dataframe(
                 pd.DataFrame({"Column": canonical, "#": range(1, len(canonical)+1)}).set_index("#"),
-                use_container_width=True
+                width='stretch'
             )
     else:
         st.warning("Column schema unavailable (preprocessor not loaded).")

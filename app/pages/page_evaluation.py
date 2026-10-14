@@ -80,7 +80,7 @@ def render(svc):
                         showscale=False,
                     )
                     fig.update_layout(title=title, height=300)
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
                     st.caption(f"FP={fp} (BENIGN predicted as ATTACK), FN={fn} (ATTACK missed)")
 
         plot_cm(cm_col1, rf, "Random Forest Confusion Matrix")
@@ -106,7 +106,7 @@ def render(svc):
             return pd.DataFrame(rows)
 
         combined_cr = pd.concat([class_report_df(rf, "Random Forest"), class_report_df(dt, "Decision Tree")])
-        st.dataframe(combined_cr.set_index(["Model", "Class"]), use_container_width=True)
+        st.dataframe(combined_cr.set_index(["Model", "Class"]), width='stretch')
 
         # ── Inference latency ───────────────────────────────────────────────
         st.markdown("---")
@@ -116,7 +116,7 @@ def render(svc):
             "ms/sample": [rf.get("inference_latency_ms_per_sample", 0), dt.get("inference_latency_ms_per_sample", 0)],
             "Total sec (test set)": [rf.get("total_inference_time_sec", 0), dt.get("total_inference_time_sec", 0)],
         }
-        st.dataframe(pd.DataFrame(lat_data), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(lat_data), width='stretch', hide_index=True)
 
     # ── STAGE 2 ───────────────────────────────────────────────────────────────
     with tab_attack:
@@ -170,7 +170,7 @@ def render(svc):
 
             st.dataframe(
                 cr_df.style.apply(highlight_row, axis=1),
-                use_container_width=True, hide_index=True,
+                width='stretch', hide_index=True,
             )
             st.caption("Yellow = < 10 test samples (unreliable). Red = F1 < 0.75")
 
@@ -185,7 +185,7 @@ def render(svc):
             )
             fig_pc.update_traces(texttemplate="%{text:.3f}", textposition="outside")
             fig_pc.update_layout(height=450, template="plotly_white", showlegend=False)
-            st.plotly_chart(fig_pc, use_container_width=True)
+            st.plotly_chart(fig_pc, width='stretch')
 
         # ── Confusion matrix ─────────────────────────────────────────────────
         cm_labels = atk.get("confusion_matrix_labels", [])
@@ -212,7 +212,7 @@ def render(svc):
                 xaxis_tickangle=-40,
                 height=550, template="plotly_white",
             )
-            st.plotly_chart(fig_cm, use_container_width=True)
+            st.plotly_chart(fig_cm, width='stretch')
 
         # ── Known limitations ─────────────────────────────────────────────────
         st.markdown("---")

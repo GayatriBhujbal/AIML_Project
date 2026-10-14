@@ -70,7 +70,7 @@ def render(svc):
             cols = svc.get_canonical_columns()
             if cols:
                 col_df = pd.DataFrame({"Required Column": cols, "#": range(1, len(cols)+1)}).set_index("#")
-                st.dataframe(col_df, use_container_width=True)
+                st.dataframe(col_df, width='stretch')
             else:
                 st.warning("Column schema unavailable (preprocessor not loaded).")
         return
@@ -91,7 +91,7 @@ def render(svc):
     st.success(f"File parsed: **{len(raw_df):,} rows × {len(raw_df.columns)} columns**")
 
     if show_raw:
-        st.dataframe(raw_df.head(20), use_container_width=True)
+        st.dataframe(raw_df.head(20), width='stretch')
 
     # ── Validate columns ──────────────────────────────────────────────────────
     is_valid, val_errors, val_warnings = svc.validate_uploaded_csv(raw_df)
@@ -165,7 +165,7 @@ def render(svc):
             hole=0.4,
         ))
         pie.update_layout(title="Binary Detection Distribution", height=300, showlegend=True)
-        st.plotly_chart(pie, use_container_width=True)
+        st.plotly_chart(pie, width='stretch')
 
     with col_c2:
         if n_attack > 0 and svc.status.can_predict_attack:
@@ -177,7 +177,7 @@ def render(svc):
                 title="Attack Category Distribution",
             )
             bar.update_layout(height=300, showlegend=False, yaxis=dict(autorange="reversed"))
-            st.plotly_chart(bar, use_container_width=True)
+            st.plotly_chart(bar, width='stretch')
         elif n_attack > 0:
             st.info("XGBoost model not loaded — attack categories unavailable.")
         else:
@@ -216,7 +216,7 @@ def render(svc):
             ],
             axis=1,
         ),
-        use_container_width=True,
+        width='stretch',
         height=400,
     )
 
