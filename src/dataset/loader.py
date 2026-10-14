@@ -5,8 +5,9 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Union, Dict, Generator, Any
 import pandas as pd
+import numpy as np
 
-from config.dataset_config import RAW_DATA_DIR, EXPECTED_FILES
+from config.dataset_config import RAW_DATA_DIR, EXPECTED_FILES, SAMPLE_RANDOM_SEED
 from src.dataset.schema import (
     CANONICAL_COLUMNS,
     TARGET_COLUMN,
@@ -101,29 +102,65 @@ class DatasetLoader:
         self,
         nrows_per_file: Optional[int] = None,
         usecols: Optional[List[str]] = None,
-        normalize_labels: bool = True
+        normalize_labels: bool = True,
+        sample_strategy: str = "random",
+        sample_seed: int = SAMPLE_RANDOM_SEED,
     ) -> pd.DataFrame:
         """
-        Load all CSV files in the dataset directory and concatenate into a single DataFrame.
+        Load all CSV files and concatenate into a single DataFrame.
+
+        Args:
+            nrows_per_file: Maximum rows per file.  None = load full file.
+            usecols:        Subset of columns to retain.
+            normalize_labels: Normalize label strings.
+            sample_strategy: 'random' (default, reproducible stratified sampling)
+                             or 'head' (first N rows -- WARNING: temporal bias).
+            sample_seed:     Random seed used when sample_strategy='random'.
+
+        Notes on temporal bias (BUG-4)
+        --------------------------------
+        Using sample_strategy='head' takes the first N rows of each CSV.  Because
+        CIC-IDS2017 CSVs are ordered by capture time, Monday's CSV is 100 % BENIGN
+        and Friday-DDos concentrates DDoS traffic near the start.  'random' avoids
+        this by drawing a reproducible random sample across the full file.
         """
         files = self.get_csv_files()
-        logger.info(f"Loading {len(files)} files from '{self.data_dir}'...")
+        logger.info(
+            f"Loading {len(files)} files from '{self.data_dir}' "
+            f"(limit={nrows_per_file or 'ALL'}, strategy={sample_strategy})..."
+        )
 
         dfs = []
         total_rows = 0
         for f in files:
-            logger.info(f"Loading '{f.name}' (limit: {nrows_per_file or 'ALL'})...")
-            df_part = self.load_file(
+            logger.info(f"Loading '{f.name}'...")
+            df_full = self.load_file(
                 f,
-                nrows=nrows_per_file,
+                nrows=None,           # always load full file first for random sampling
                 usecols=usecols,
-                normalize_labels=normalize_labels
+                normalize_labels=normalize_labels,
             )
+            if nrows_per_file and len(df_full) > nrows_per_file:
+                if sample_strategy == "random":
+                    df_part = df_full.sample(
+                        n=nrows_per_file, random_state=sample_seed, replace=False
+                    ).reset_index(drop=True)
+                    logger.info(
+                        f"  Sampled {nrows_per_file:,} / {len(df_full):,} rows (random, seed={sample_seed})"
+                    )
+                else:  # 'head'
+                    df_part = df_full.head(nrows_per_file)
+                    logger.warning(
+                        f"  Took first {nrows_per_file:,} rows (head -- temporal bias risk)."
+                    )
+            else:
+                df_part = df_full
+                logger.info(f"  Loaded all {len(df_part):,} rows.")
             dfs.append(df_part)
             total_rows += len(df_part)
 
         combined_df = pd.concat(dfs, ignore_index=True)
-        logger.info(f"Loaded {total_rows:,} total records across {len(files)} files.")
+        logger.info(f"Combined {total_rows:,} rows from {len(files)} files.")
         return combined_df
 
     def load_stream_chunks(

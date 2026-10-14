@@ -1,0 +1,102 @@
+[
+  {
+    "feature":"Fwd IAT Max",
+    "importance":0.1118108034
+  },
+  {
+    "feature":"Destination Port",
+    "importance":0.1069266647
+  },
+  {
+    "feature":"Init_Win_bytes_backward",
+    "importance":0.0977592766
+  },
+  {
+    "feature":"Init_Win_bytes_forward",
+    "importance":0.0743934661
+  },
+  {
+    "feature":"Bwd IAT Std",
+    "importance":0.0691767111
+  },
+  {
+    "feature":"Bwd Packet Length Mean",
+    "importance":0.0639566258
+  },
+  {
+    "feature":"Fwd Packet Length Max",
+    "importance":0.0629393458
+  },
+  {
+    "feature":"Flow IAT Min",
+    "importance":0.0444289483
+  },
+  {
+    "feature":"Subflow Fwd Bytes",
+    "importance":0.0436623581
+  },
+  {
+    "feature":"Avg Fwd Segment Size",
+    "importance":0.0423690714
+  },
+  {
+    "feature":"Fwd IAT Std",
+    "importance":0.0330254175
+  },
+  {
+    "feature":"Fwd IAT Total",
+    "importance":0.0316803865
+  },
+  {
+    "feature":"Fwd IAT Min",
+    "importance":0.0293453522
+  },
+  {
+    "feature":"Fwd Packets\/s",
+    "importance":0.0288158748
+  },
+  {
+    "feature":"Flow Bytes\/s",
+    "importance":0.0277418252
+  },
+  {
+    "feature":"Bwd IAT Max",
+    "importance":0.0272381455
+  },
+  {
+    "feature":"Subflow Bwd Bytes",
+    "importance":0.0265153833
+  },
+  {
+    "feature":"Bwd Packet Length Std",
+    "importance":0.0235887151
+  },
+  {
+    "feature":"Bwd IAT Mean",
+    "importance":0.0219241958
+  },
+  {
+    "feature":"Packet Length Variance",
+    "importance":0.0159199666
+  },
+  {
+    "feature":"Average Packet Size",
+    "importance":0.0110757519
+  },
+  {
+    "feature":"Packet Length Std",
+    "importance":0.0045571621
+  },
+  {
+    "feature":"Active Mean",
+    "importance":0.0011485548
+  },
+  {
+    "feature":"Fwd Packet Length Std",
+    "importance":0.0
+  },
+  {
+    "feature":"Min Packet Length",
+    "importance":0.0
+  }
+]

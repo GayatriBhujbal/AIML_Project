@@ -99,10 +99,21 @@ class PreprocessingPipeline(BaseEstimator, TransformerMixin):
 
         # 3. Filter to explicitly selected features if specified
         if self.selected_features is not None:
-            # Keep intersection of selected features and available active features
-            final_features = [f for f in self.selected_features if f in active_df.columns]
-            active_df = active_df[final_features]
-            self.feature_names_out_ = final_features
+            # BUG-5 FIX: raise an explicit error if a required selected feature is absent
+            # after preprocessing (e.g. it was zero-variance in the training sample).
+            # Previously this silently produced a smaller-than-expected feature set.
+            missing_selected = [f for f in self.selected_features if f not in active_df.columns]
+            if missing_selected:
+                raise ValueError(
+                    f"BUG-5: {len(missing_selected)} selected feature(s) are absent after "
+                    f"preprocessing: {missing_selected}. "
+                    "Possible causes: (a) these features are zero-variance in the training "
+                    "sample you supplied -- enlarge the sample, (b) the selected_features.json "
+                    "was generated from a different dataset sample than the one used here. "
+                    "Re-run run_feature_selection.py on the same data to regenerate it."
+                )
+            active_df = active_df[self.selected_features]
+            self.feature_names_out_ = list(self.selected_features)
         else:
             self.feature_names_out_ = list(active_df.columns)
 
@@ -220,21 +231,58 @@ class PreprocessingPipeline(BaseEstimator, TransformerMixin):
             raise ValueError(f"Unknown mode '{mode}'.")
 
     def save(self, filepath: Optional[Union[str, Path]] = None) -> Path:
-        """Serialize fitted pipeline to disk."""
+        """Serialize fitted pipeline to disk.
+
+        BUG-6 FIX: also saves a sidecar JSON schema file
+        (<artifact>.schema.json) alongside the .joblib so that schema
+        mismatches can be detected at load time.
+        """
         if not self.is_fitted_:
             raise RuntimeError("Cannot save an unfitted pipeline.")
         out_path = Path(filepath) if filepath else (MODELS_DIR / "preprocessor.joblib")
         out_path.parent.mkdir(parents=True, exist_ok=True)
         joblib.dump(self, out_path)
+        # Save schema sidecar
+        schema = {
+            "feature_names_in_": self.feature_names_in_,
+            "feature_names_out_": self.feature_names_out_,
+            "zero_variance_cols_": self.zero_variance_cols_,
+            "selected_features": self.selected_features,
+            "scaler_type": self.scaler_type,
+        }
+        schema_path = out_path.with_suffix(".schema.json")
+        import json as _json
+        with open(schema_path, "w", encoding="utf-8") as f:
+            _json.dump(schema, f, indent=2)
         logger.info(f"Saved fitted PreprocessingPipeline to '{out_path}'.")
+        logger.info(f"Saved pipeline schema sidecar to '{schema_path}'.")
         return out_path
 
     @classmethod
     def load(cls, filepath: Optional[Union[str, Path]] = None) -> "PreprocessingPipeline":
-        """Load fitted pipeline from disk."""
+        """Load fitted pipeline from disk.
+
+        BUG-6 FIX: validates the sidecar schema if it exists so that
+        incompatible artifacts are detected at load time rather than causing
+        silent mispredictions.
+        """
         in_path = Path(filepath) if filepath else (MODELS_DIR / "preprocessor.joblib")
         if not in_path.exists():
             raise FileNotFoundError(f"Pipeline artifact not found at '{in_path}'.")
         pipeline = joblib.load(in_path)
+        # Validate sidecar schema if present
+        schema_path = in_path.with_suffix(".schema.json")
+        if schema_path.exists():
+            import json as _json
+            with open(schema_path, "r", encoding="utf-8") as f:
+                saved_schema = _json.load(f)
+            live_out = list(pipeline.feature_names_out_)
+            saved_out = saved_schema.get("feature_names_out_", [])
+            if live_out != saved_out:
+                raise RuntimeError(
+                    f"Pipeline artifact schema mismatch: the loaded .joblib has "
+                    f"{len(live_out)} output features but the sidecar schema records "
+                    f"{len(saved_out)}. The artifact may be stale. Refit the pipeline."
+                )
         logger.info(f"Loaded PreprocessingPipeline from '{in_path}'.")
         return pipeline
