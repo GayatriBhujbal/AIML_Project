@@ -1,22 +1,23 @@
 # Explainable AI-Based Network Threat Detection and Classification
-## Component 1: Dataset Handling, Preprocessing, and Exploratory Data Analysis (EDA)
+## Components 1 & 2: Dataset Preprocessing, Feature Selection, and Binary Threat Detection
 
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/pytest-14%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/pytest-22%20passed-brightgreen.svg)](tests/)
 [![Dataset](https://img.shields.io/badge/dataset-CIC--IDS2017-orange.svg)](https://www.unb.ca/cic/datasets/ids-2017.html)
+[![Model](https://img.shields.io/badge/Random%20Forest-Accuracy%2099.98%25-success.svg)](artifacts/models/)
 
 ---
 
 ## 1. Project Overview
-This repository contains the production-grade data engineering, validation, preprocessing, exploratory data analysis, and feature selection pipeline for our college mini-project: **Explainable AI-Based Network Threat Detection and Classification**.
+This repository contains the production-grade implementation of **Component 1 (Data Preprocessing, EDA, Feature Selection)** and **Component 2 (Binary Threat Detection)** for the college mini-project: **Explainable AI-Based Network Threat Detection and Classification**.
 
-### Key Responsibilities Addressed:
-1. **Dataset Validation & Inspection:** Empirical schema auditing across all 8 raw CSV files (2,830,743 records) from the Canadian Institute for Cybersecurity (CIC-IDS2017).
-2. **Data Cleaning & Anomaly Handling:** Whitespace stripping, Unicode normalization for corrupted strings (e.g. Web Attack labels), infinite value replacement (`inf` in packet rates), negative value clipping (sensor rollover artifacts), and duplicate column removal (`Fwd Header Length.1`).
-3. **Deduplication & Leakage Prevention:** Elimination of 308,381 duplicate network flows to prevent cross-split data leakage.
-4. **Reproducible Stratified Splitting:** 70% Train, 15% Validation, 15% Test split preserving extreme minority attack classes (`Heartbleed`: 11 samples, `Sql Injection`: 21 samples, `Infiltration`: 36 samples).
-5. **Systematic Feature Selection:** Data-driven feature selection using training data only, combining zero-variance pruning, collinearity filtering (|r| > 0.95), and Random Forest Gini importance to select the top 25 most predictive network features.
-6. **Reusable Pipeline Interface:** Production-ready `PreprocessingPipeline` serialized with `joblib` for Members 2, 3, and 4.
+### Key Deliverables:
+1. **Component 1: Data Engineering & Validation:** Full schema validation across all 8 raw CSVs (2,830,743 records), anomaly cleaning (infs, NaNs, sensor rollovers), stratified 70/15/15 splitting, and systematic feature selection (reducing 78 features to 25 optimal features).
+2. **Component 2: Binary Threat Detection:**
+   - **Baseline:** Decision Tree classifier for empirical comparison.
+   - **Primary Model:** Random Forest classifier (100 trees, balanced class weights, calibrated decision threshold).
+   - **Fair Evaluation:** Both models evaluated on the identical held-out Test Set (29,173 flows).
+   - **Interfacing:** Unified `ThreatDetectionInferenceEngine` delivering turnkey explainer inputs for Member 4 (SHAP & LIME) and automatic hierarchical traffic routing for Member 3 (XGBoost).
 
 ---
 
@@ -47,14 +48,21 @@ AIML_project/
 │   ├── feature_selection/
 │   │   ├── __init__.py
 │   │   └── selector.py             # Variance, collinearity, and RF importance
-│   └── eda/
+│   ├── eda/
+│   │   ├── __init__.py
+│   │   └── visualizer.py           # Publication-quality plotting routines
+│   └── models/
 │       ├── __init__.py
-│       └── visualizer.py           # Publication-quality plotting routines
+│       ├── binary_detector.py      # DecisionTreeBaseline & RandomForestBinaryDetector
+│       ├── evaluator.py            # Confusion matrix, ROC, PR curves, latency evaluator
+│       └── predictor.py            # Turnkey engine for Member 4 (XAI) and Member 3 (XGBoost)
 │
 ├── scripts/
-│   ├── run_eda.py                  # CLI to run full EDA and generate report/figures
-│   ├── run_feature_selection.py    # CLI to run feature selection on train set
-│   └── prepare_dataset.py          # CLI to fit and save preprocessor.joblib
+│   ├── run_eda.py                  # CLI generating full audit report & 5 figures
+│   ├── run_feature_selection.py    # CLI running feature selection & validation benchmarking
+│   ├── prepare_dataset.py          # CLI fitting and serializing preprocessor.joblib
+│   ├── train_binary_models.py      # CLI training DT baseline & RF detector on train set
+│   └── evaluate_binary_models.py   # CLI evaluating saved models on test CSVs
 │
 ├── notebooks/
 │   └── exploratory_data_analysis.ipynb # Interactive exploration notebook
@@ -70,14 +78,30 @@ AIML_project/
 │   │   ├── missing_and_inf_analysis.png
 │   │   ├── correlation_heatmap.png
 │   │   ├── feature_distributions_by_class.png
-│   │   └── feature_importance.png
+│   │   ├── feature_importance.png
+│   │   ├── binary_roc_curve.png
+│   │   ├── binary_precision_recall_curve.png
+│   │   └── binary_confusion_matrices.png
 │   ├── models/
-│   │   ├── preprocessor.joblib      # Pre-fitted preprocessing pipeline artifact
-│   │   └── inference_samples.json  # Raw sample flows for integration testing
+│   │   ├── preprocessor.joblib           # Pre-fitted preprocessing pipeline artifact
+│   │   ├── binary_decision_tree.joblib   # Trained Decision Tree baseline model
+│   │   ├── binary_random_forest.joblib   # Trained Random Forest detector model
+│   │   └── inference_samples.json       # Raw sample flows for integration testing
 │   └── reports/
 │       ├── dataset_quality_report.md
-│       └── feature_selection_report.json
+│       ├── feature_selection_report.json
+│       ├── binary_model_evaluation_report.md
+│       └── binary_model_evaluation.json
 │
+└── tests/
+    ├── __init__.py
+    ├── test_schema.py              # Schema and label encoding tests
+    ├── test_cleaner.py             # Cleaning, inf, negative, and dedup tests
+    ├── test_splitter.py            # Stratification and zero-leakage tests
+    ├── test_pipeline.py            # Fit on train only, transform, and joblib tests
+    ├── test_binary_models.py       # Decision Tree & Random Forest unit tests
+    └── test_predictor_interface.py # Integration tests for Member 4 and Member 3 contracts
+```
 └── tests/
     ├── __init__.py
     ├── test_schema.py              # Schema and label encoding tests
@@ -195,5 +219,27 @@ Pruning noisy, zero-variance, and collinear features yields superior generalizat
 
 ---
 
-## 7. Integration Contract for Members 2, 3, and 4
+## 7. Binary Threat Detection: Decision Tree Baseline vs. Random Forest Detector
+
+Both models were trained using identical training data (with balanced class weights) and evaluated on the untouched held-out **Test Set (29,173 flows)**:
+
+| Performance Metric | Decision Tree (Baseline) | Random Forest (Selected Model) | Empirical Difference |
+| :--- | :--- | :--- | :--- |
+| **Test Accuracy** | 99.907% | **99.976%** | **+0.069%** |
+| **Attack Precision** | 97.716% (24 False Positives) | **100.000% (0 False Positives)** | **+2.284% (Zero False Alarms)** |
+| **Attack Recall** | **99.709%** | 99.320% | -0.389% |
+| **Attack F1-Score** | 0.98703 | **0.99659** | **+0.00956** |
+| **Macro F1-Score** | 0.99327 | **0.99823** | **+0.00496** |
+| **ROC-AUC** | 0.99849 | **1.00000** | **+0.00151** |
+| **PR-AUC** | 0.99425 | **0.99996** | **+0.00571** |
+| **Inference Latency** | **0.0009 ms / flow** | 0.0053 ms / flow | +0.0044 ms |
+
+### Key Justifications for Random Forest Selection:
+1. **False Positive Elimination:** Decision Tree produced 24 false alarms on benign traffic. In production SOC environments, false alarms overwhelm security teams. Random Forest achieved **0 False Positives (100% precision)**.
+2. **Probability Smoothness:** Random Forest provides continuous, well-calibrated class probabilities ($AUC = 1.000$), enabling precise threshold calibration for Member 4's SHAP explainers.
+3. **Sub-millisecond Latency:** At **5.3 microseconds per flow**, Random Forest comfortably meets line-rate processing requirements for 10Gbps+ networks.
+
+---
+
+## 8. Integration Contract for Members 3 and 4
 For complete instructions, code snippets, and usage contracts, see [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md).

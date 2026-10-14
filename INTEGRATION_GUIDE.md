@@ -43,67 +43,69 @@ X_processed = pipeline.transform(X_raw)
 
 ---
 
-## 3. Member 2: Binary Threat Detector (Random Forest)
+## 3. Member 2: Binary Threat Detector (Random Forest & Baseline Decision Tree)
 
-### Target Encoding:
+### Deployed Artifacts:
+- **Primary Detector:** `artifacts/models/binary_random_forest.joblib` (Random Forest, 100 trees, balanced class weights, calibrated threshold: 0.60)
+- **Baseline Model:** `artifacts/models/binary_decision_tree.joblib` (Decision Tree, depth 12)
+- **Evaluation Report:** `artifacts/reports/binary_model_evaluation_report.md`
+- **Evaluation Curves:**
+  - `artifacts/figures/binary_roc_curve.png`
+  - `artifacts/figures/binary_precision_recall_curve.png`
+  - `artifacts/figures/binary_confusion_matrices.png`
+
+### Test Performance on Held-Out Data (29,173 flows):
+- **Random Forest:** Accuracy: **99.976%**, Attack Precision: **100.00%**, Attack Recall: **99.32%**, F1: **0.9966**, ROC-AUC: **1.0000**, Latency: **0.0053 ms / sample**.
+- **Decision Tree Baseline:** Accuracy: 99.907%, Attack Precision: 97.72%, Attack Recall: 99.71%, F1: 0.9870, ROC-AUC: 0.9985, Latency: 0.0009 ms / sample.
+
+---
+
+## 4. Member 3: Multiclass Attack Classifier (XGBoost) Integration
+
+### Hierarchical Architecture Hand-off:
+In the end-to-end detection pipeline, Member 2 filters benign traffic, routing only suspected attacks to Member 3 for fine-grained attack classification (DDoS, PortScan, Web Attack, Patator, Bot, Infiltration, etc.):
+
 ```python
-# Encodes: BENIGN -> 0, ANY ATTACK -> 1
-y_binary = PreprocessingPipeline.encode_labels(y_raw, mode="binary")
+import pandas as pd
+from src.models.predictor import ThreatDetectionInferenceEngine
 
-from sklearn.ensemble import RandomForestClassifier
-rf = RandomForestClassifier(n_estimators=100, max_depth=16, random_state=42, n_jobs=-1)
-rf.fit(X_processed, y_binary)
-```
+# 1. Initialize binary inference engine
+engine = ThreatDetectionInferenceEngine()
 
-### Decoding Predictions for Inference:
-```python
-y_pred = rf.predict(X_processed[:5])
-pred_labels = PreprocessingPipeline.decode_labels(y_pred, mode="binary")
-# Output: ['BENIGN', 'ATTACK', ...]
+# 2. Ingest raw traffic batch
+raw_traffic_df = pd.read_csv("path/to/incoming_traffic.csv")
+
+# 3. Route suspected attack traffic directly to XGBoost
+# attack_features: DataFrame of shape (K, 25) with ONLY rows flagged as ATTACK
+# attack_indices: Original DataFrame indices corresponding to the attack flows
+attack_features, attack_indices, _ = engine.route_to_attack_classifier(raw_traffic_df)
+
+# 4. Member 3 classifies the attack types:
+# xgb_predictions = member3_xgboost_model.predict(attack_features)
 ```
 
 ---
 
-## 4. Member 3: Multiclass Attack Classifier (XGBoost)
+## 5. Member 4: Explainable AI (SHAP & LIME) Integration
 
-### Target Encoding:
-```python
-# 15-class granular attack encoding (0 to 14)
-y_multiclass = PreprocessingPipeline.encode_labels(y_raw, mode="multiclass")
-
-# OR 7-class attack family encoding (Benign, DoS/DDoS, PortScan, BruteForce, WebAttack, Botnet, Infiltration/Exploit)
-y_category = PreprocessingPipeline.encode_labels(y_raw, mode="category")
-```
-
-### Handling Class Imbalance:
-Because minority classes (e.g., Heartbleed: 11 samples, SQL Injection: 21 samples) are heavily imbalanced, compute balanced sample weights:
-```python
-from sklearn.utils.class_weight import compute_sample_weight
-sample_weights = compute_sample_weight("balanced", y_multiclass)
-
-# In XGBoost:
-# model.fit(X_processed, y_multiclass, sample_weight=sample_weights)
-```
-
----
-
-## 5. Member 4: Explainable AI (SHAP & LIME)
-
-### Feature Names & Ordering:
-SHAP and LIME require exact feature names corresponding to each column in `X_processed`:
+### Direct Explainer Inputs:
+Member 4 does not need to manually configure feature matrices or extract tree weights. `ThreatDetectionInferenceEngine` provides a turnkey explainer interface:
 
 ```python
-import json
 import shap
+from src.models.predictor import ThreatDetectionInferenceEngine
 
-with open("artifacts/schemas/selected_features.json", "r") as f:
-    feature_names = json.load(f)["selected_features"]
+# 1. Initialize inference engine
+engine = ThreatDetectionInferenceEngine()
 
-# TreeExplainer for Member 2's Random Forest or Member 3's XGBoost:
-explainer = shap.TreeExplainer(rf, data=shap.sample(X_processed, 100))
-shap_values = explainer(X_processed.iloc[:10])
+# 2. Get preprocessed DataFrame and underlying scikit-learn RandomForestClassifier
+X_trans, rf_estimator = engine.get_explainer_inputs(sample_raw_df)
 
-# Feature names match exactly:
+# 3. Initialize SHAP TreeExplainer
+explainer = shap.TreeExplainer(rf_estimator, data=shap.sample(X_trans, 100))
+shap_values = explainer(X_trans)
+
+# 4. Generate local waterfall explanation for any flow:
 shap.plots.waterfall(shap_values[0])
 ```
 
