@@ -57,121 +57,69 @@ def get_service():
     return InferenceService()
 
 
-# ── Custom CSS ────────────────────────────────────────────────────────────────
+
+
+
+
+# ── Top navigation bar (real clickable Streamlit buttons) ────────────────────
+PAGES = ["🏠  Home", "📂  Analyze", "📊  Results", "🔍  Explain", "⚙️  System Info"]
+PAGE_KEYS = ["Home", "Analyze", "Results", "Explain", "System Info"]
+
+cur = st.session_state["page"]
+
+# Style the nav bar container and override button appearance inside it
 st.markdown("""
 <style>
-/* Hide default Streamlit sidebar toggle and top-right menu */
-[data-testid="stSidebarCollapseButton"] { display: none; }
 #MainMenu { visibility: hidden; }
 footer { visibility: hidden; }
+[data-testid="stSidebarCollapseButton"] { display: none; }
 
-/* Top navigation bar */
-.topnav-wrapper {
-    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
-    padding: 0.6rem 1.5rem;
-    border-radius: 12px;
-    margin-bottom: 1.5rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-}
-.topnav-brand {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #60a5fa;
-    margin-right: 1.5rem;
-    white-space: nowrap;
-    letter-spacing: 0.02em;
-}
-.topnav-btn {
-    background: transparent;
-    border: none;
-    color: #94a3b8;
-    padding: 0.45rem 1.1rem;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-}
-.topnav-btn:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; }
-.topnav-btn.active {
-    background: #2563eb;
-    color: #fff;
-    box-shadow: 0 2px 8px rgba(37,99,235,0.4);
+/* Nav container — brand label */
+.nav-brand {
+    font-size: 1.05rem; font-weight: 700; color: #60a5fa;
+    white-space: nowrap; padding: 0.5rem 0.8rem 0.5rem 0;
 }
 
-/* Card grid */
+/* Style ALL nav buttons uniformly */
+div[data-testid="stHorizontalBlock"]:first-of-type button {
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    font-size: 0.88rem !important;
+    padding: 0.4rem 0.9rem !important;
+    border: none !important;
+    transition: background 0.2s !important;
+    width: 100% !important;
+}
+
+/* Feature cards */
 .card-grid { display: flex; gap: 1.2rem; margin: 1.5rem 0; flex-wrap: wrap; }
 .feature-card {
     flex: 1; min-width: 200px;
     background: linear-gradient(135deg, #1e293b, #0f172a);
-    border: 1px solid #334155;
-    border-radius: 14px;
-    padding: 1.4rem 1.2rem;
-    text-align: center;
+    border: 1px solid #334155; border-radius: 14px;
+    padding: 1.4rem 1.2rem; text-align: center;
     transition: transform 0.2s, box-shadow 0.2s;
 }
 .feature-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
 .feature-card .icon { font-size: 2.2rem; margin-bottom: 0.6rem; }
 .feature-card h4 { color: #e2e8f0; margin: 0.4rem 0 0.3rem; font-size: 1rem; }
 .feature-card p { color: #94a3b8; font-size: 0.82rem; margin: 0; line-height: 1.4; }
-
-/* CTA button */
-.cta-wrap { text-align: center; margin: 2rem 0 1rem; }
-
-/* Status badge */
-.badge-attack {
-    background: #fef2f2; color: #dc2626;
-    padding: 2px 10px; border-radius: 999px;
-    font-size: 0.78rem; font-weight: 600;
-}
-.badge-benign {
-    background: #f0fdf4; color: #16a34a;
-    padding: 2px 10px; border-radius: 999px;
-    font-size: 0.78rem; font-weight: 600;
-}
-
-/* Metric tile */
-.metric-tile {
-    background: #1e293b; border: 1px solid #334155;
-    border-radius: 12px; padding: 1rem 1.2rem;
-    text-align: center;
-}
-.metric-tile .val { font-size: 2rem; font-weight: 700; color: #60a5fa; }
-.metric-tile .lbl { font-size: 0.78rem; color: #94a3b8; margin-top: 0.2rem; }
 </style>
 """, unsafe_allow_html=True)
 
+# Brand + nav buttons in one row
+brand_col, *nav_cols, _ = st.columns([1.6, 1, 1, 1, 1, 1.4])
+with brand_col:
+    st.markdown('<p class="nav-brand">🛡️ XAI Threat Detection</p>', unsafe_allow_html=True)
 
-# ── Top navigation bar ────────────────────────────────────────────────────────
-PAGES = ["Home", "Analyze", "Results", "Explain", "System Info"]
-PAGE_ICONS = {"Home": "🏠", "Analyze": "📂", "Results": "📊", "Explain": "🔍", "System Info": "⚙️"}
+for col, label, key in zip(nav_cols, PAGES, PAGE_KEYS):
+    with col:
+        btn_type = "primary" if key == cur else "secondary"
+        if st.button(label, key=f"nav_{key}", type=btn_type, use_container_width=True):
+            nav_to(key)
 
-cur = st.session_state["page"]
+st.divider()
 
-# Build nav HTML + use Streamlit columns for click targets
-nav_html = f"""
-<div class="topnav-wrapper">
-  <span class="topnav-brand">🛡️ XAI Threat Detection</span>
-"""
-for p in PAGES:
-    active = "active" if p == cur else ""
-    nav_html += f'<span class="topnav-btn {active}">{PAGE_ICONS[p]} {p}</span>'
-nav_html += "</div>"
-st.markdown(nav_html, unsafe_allow_html=True)
-
-# Invisible Streamlit buttons for actual navigation (overlaid via columns)
-nav_cols = st.columns(len(PAGES) + 2)  # +2 for brand spacer
-for i, page in enumerate(PAGES):
-    with nav_cols[i + 1]:
-        if st.button(page, key=f"nav_{page}", width='stretch',
-                     type="primary" if page == cur else "secondary"):
-            nav_to(page)
-
-st.markdown("<style>[data-testid='stHorizontalBlock']:nth-of-type(1) button { opacity: 0; height: 0; padding: 0; margin: 0; border: none; }</style>", unsafe_allow_html=True)
 
 # ── Route to page ─────────────────────────────────────────────────────────────
 svc = get_service()
