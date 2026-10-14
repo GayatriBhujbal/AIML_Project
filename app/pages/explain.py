@@ -9,11 +9,13 @@ import plotly.graph_objects as go
 # ── SHAP waterfall helper ─────────────────────────────────────────────────────
 
 def _shap_waterfall(shap_vals, feat_names, feat_vals, expected_val, title, n_top=12):
-    sv = np.array(shap_vals)
+    sv = np.array(shap_vals).flatten()          # always 1-D regardless of SHAP output shape
+    feat_vals = list(np.array(feat_vals).flatten())
+    n_top = min(n_top, len(sv))
     order = np.argsort(np.abs(sv))[::-1][:n_top]
-    names = [feat_names[i] for i in order]
-    vals  = [sv[i]         for i in order]
-    fvals = [feat_vals[i]  for i in order]
+    names = [feat_names[int(i)] for i in order]
+    vals  = [float(sv[int(i)])  for i in order]
+    fvals = [float(feat_vals[int(i)]) for i in order]
 
     # Sort by magnitude for readability
     srt = np.argsort(vals)
