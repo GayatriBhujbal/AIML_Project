@@ -1,0 +1,58 @@
+{
+  "binary_mapping": {
+    "BENIGN": 0,
+    "ATTACK": 1
+  },
+  "multiclass_mapping": {
+    "BENIGN": 0,
+    "DoS Hulk": 1,
+    "PortScan": 2,
+    "DDoS": 3,
+    "DoS GoldenEye": 4,
+    "FTP-Patator": 5,
+    "SSH-Patator": 6,
+    "DoS slowloris": 7,
+    "DoS Slowhttptest": 8,
+    "Bot": 9,
+    "Web Attack - Brute Force": 10,
+    "Web Attack - XSS": 11,
+    "Infiltration": 12,
+    "Web Attack - Sql Injection": 13,
+    "Heartbleed": 14
+  },
+  "inverse_multiclass_mapping": {
+    "0": "BENIGN",
+    "1": "DoS Hulk",
+    "2": "PortScan",
+    "3": "DDoS",
+    "4": "DoS GoldenEye",
+    "5": "FTP-Patator",
+    "6": "SSH-Patator",
+    "7": "DoS slowloris",
+    "8": "DoS Slowhttptest",
+    "9": "Bot",
+    "10": "Web Attack - Brute Force",
+    "11": "Web Attack - XSS",
+    "12": "Infiltration",
+    "13": "Web Attack - Sql Injection",
+    "14": "Heartbleed"
+  },
+  "attack_category_mapping": {
+    "BENIGN": "Benign",
+    "DoS Hulk": "DoS/DDoS",
+    "DoS GoldenEye": "DoS/DDoS",
+    "DoS slowloris": "DoS/DDoS",
+    "DoS Slowhttptest": "DoS/DDoS",
+    "DDoS": "DoS/DDoS",
+    "PortScan": "PortScan",
+    "FTP-Patator": "BruteForce",
+    "SSH-Patator": "BruteForce",
+    "Web Attack - Brute Force": "WebAttack",
+    "Web Attack - XSS": "WebAttack",
+    "Web Attack - Sql Injection": "WebAttack",
+    "Bot": "Botnet",
+    "Infiltration": "Infiltration/Exploit",
+    "Heartbleed": "Infiltration/Exploit"
+  },
+  "total_classes": 15
+}

@@ -1,0 +1,35 @@
+{
+  "num_selected_features": 25,
+  "selected_features": [
+    "Bwd Packet Length Std",
+    "Destination Port",
+    "Packet Length Variance",
+    "Subflow Fwd Bytes",
+    "Average Packet Size",
+    "Packet Length Std",
+    "Subflow Bwd Bytes",
+    "Fwd Packet Length Std",
+    "Bwd Packet Length Mean",
+    "Avg Fwd Segment Size",
+    "Fwd Packet Length Max",
+    "Fwd IAT Min",
+    "Fwd IAT Std",
+    "Min Packet Length",
+    "Fwd IAT Total",
+    "Fwd Packets/s",
+    "Fwd IAT Max",
+    "Flow Bytes/s",
+    "Init_Win_bytes_backward",
+    "Init_Win_bytes_forward",
+    "Flow IAT Min",
+    "Bwd IAT Std",
+    "Bwd IAT Mean",
+    "Active Mean",
+    "Bwd IAT Max"
+  ],
+  "compatible_models": [
+    "RandomForestClassifier",
+    "XGBoostClassifier",
+    "SHAP_Explainer"
+  ]
+}
