@@ -10,7 +10,7 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from config.dataset_config import RAW_DATA_DIR, SCHEMAS_DIR, MODELS_DIR, REPORTS_DIR
+from config.dataset_config import RAW_DATA_DIR, SCHEMAS_DIR, MODELS_DIR, REPORTS_DIR, DEFAULT_SAMPLE_PER_FILE, SAMPLE_STRATEGY
 from src.dataset.loader import DatasetLoader
 from src.dataset.schema import TARGET_COLUMN, export_schemas_to_json
 from src.preprocessing.cleaner import DataCleaner
@@ -23,8 +23,17 @@ logger = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser(description="End-to-end dataset preprocessing and pipeline fitting.")
-    parser.add_argument("--sample-per-file", type=int, default=30000,
-                        help="Number of rows to load per file (default: 30,000 for balanced 240k rows). Use 0 for full dataset.")
+    parser.add_argument(
+        "--sample-per-file", type=int, default=DEFAULT_SAMPLE_PER_FILE,
+        help=(
+            f"Rows to load per CSV file (default: {DEFAULT_SAMPLE_PER_FILE:,}; "
+            "0 = full dataset). Shared default set in config/dataset_config.py."
+        ),
+    )
+    parser.add_argument(
+        "--sample-strategy", default=SAMPLE_STRATEGY, choices=["random", "head"],
+        help="'random' (reproducible, avoids temporal bias) or 'head' (first N rows).",
+    )
     args = parser.parse_args()
 
     logger.info("=" * 70)
@@ -37,8 +46,14 @@ def main():
     # 2. Load dataset
     loader = DatasetLoader(RAW_DATA_DIR)
     nrows = None if args.sample_per_file == 0 else args.sample_per_file
-    logger.info(f"Loading data (limit per file: {nrows or 'FULL'})...")
-    raw_df = loader.load_combined(nrows_per_file=nrows, normalize_labels=True)
+    logger.info(
+        f"Loading data (limit per file: {nrows or 'FULL'}, strategy: {args.sample_strategy})..."
+    )
+    raw_df = loader.load_combined(
+        nrows_per_file=nrows,
+        normalize_labels=True,
+        sample_strategy=args.sample_strategy,
+    )
 
     # 3. Clean dataset
     cleaner = DataCleaner()

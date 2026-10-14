@@ -9,7 +9,7 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from config.dataset_config import RAW_DATA_DIR, SCHEMAS_DIR, REPORTS_DIR, FIGURES_DIR
+from config.dataset_config import RAW_DATA_DIR, SCHEMAS_DIR, REPORTS_DIR, FIGURES_DIR, DEFAULT_SAMPLE_PER_FILE, SAMPLE_STRATEGY
 from src.dataset.loader import DatasetLoader
 from src.preprocessing.cleaner import DataCleaner
 from src.preprocessing.splitter import DataSplitter
@@ -26,10 +26,17 @@ def main():
     logger.info("STARTING SYSTEMATIC FEATURE SELECTION PIPELINE")
     logger.info("=" * 70)
 
-    # 1. Load balanced sample from actual dataset files
+    # 1. Load balanced sample from actual dataset files (BUG-3 fix: use shared config default)
     loader = DatasetLoader(RAW_DATA_DIR)
-    logger.info("Loading dataset sample (25,000 rows per file = 200,000 records)...")
-    raw_df = loader.load_combined(nrows_per_file=25000, normalize_labels=True)
+    logger.info(
+        f"Loading dataset sample ({DEFAULT_SAMPLE_PER_FILE:,} rows per file, "
+        f"strategy={SAMPLE_STRATEGY})..."
+    )
+    raw_df = loader.load_combined(
+        nrows_per_file=DEFAULT_SAMPLE_PER_FILE,
+        normalize_labels=True,
+        sample_strategy=SAMPLE_STRATEGY,
+    )
 
     # 2. Clean data (dropping duplicate/constant columns and handling infinite/negative values)
     cleaner = DataCleaner()
