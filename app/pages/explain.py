@@ -1,4 +1,4 @@
-"""Page 4 — Explain: SHAP explanations for the record selected on the Results page."""
+"""Page 4 — Explain: Feature contribution explanations for the selected record."""
 
 import streamlit as st
 import pandas as pd
@@ -13,12 +13,12 @@ def _shap_waterfall(shap_vals, feat_names, feat_vals, expected_val, title, n_top
     feat_names = list(feat_names)
     feat_vals = np.asarray(feat_vals).reshape(-1).tolist()
 
-    # Prevent feature-index errors if the explanation arrays differ in length.
+    # Prevent feature-index errors if the explanation arrays differ in length
     n_features = min(len(sv), len(feat_names), len(feat_vals))
     if n_features == 0:
         fig = go.Figure()
         fig.add_annotation(
-            text="No feature SHAP values available to display.",
+            text="No feature contribution data available to display.",
             xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False,
             font=dict(size=12, color="#64748b"),
         )
@@ -46,9 +46,8 @@ def _shap_waterfall(shap_vals, feat_names, feat_vals, expected_val, title, n_top
     vals = [vals[i] for i in srt]
     fvals = [fvals[i] for i in srt]
 
-    colors = ["#ef4444" if v > 0 else "#3b82f6" for v in vals]
-    ylabels = [f"{n}  <i style='color:#64748b'>({v:.3g})</i>"
-               for n, v in zip(names, fvals)]
+    colors = ["#dc2626" if v > 0 else "#2563eb" for v in vals]
+    ylabels = [f"{n}  <i style='color:#64748b'>({v:.3g})</i>" for n, v in zip(names, fvals)]
 
     base_num = float(expected_val) if hasattr(expected_val, "__float__") or isinstance(expected_val, (int, float)) else 0.0
 
@@ -60,13 +59,13 @@ def _shap_waterfall(shap_vals, feat_names, feat_vals, expected_val, title, n_top
     ))
     fig.update_layout(
         title=dict(text=title, font_size=14),
-        xaxis_title="SHAP value  →  pushes toward ATTACK",
+        xaxis_title="Feature Influence  (→ Red pushes toward Threat Detected · Blue pushes toward Safe)",
         height=max(320, n_top * 38),
         template="plotly_white",
         margin=dict(l=10, r=60, t=50, b=40),
         annotations=[dict(
             x=0.01, y=-0.12, xref="paper", yref="paper",
-            text=f"Base value: {base_num:.4f}",
+            text=f"Baseline Expected Value: {base_num:.4f}",
             showarrow=False, font=dict(size=10, color="#94a3b8"),
         )],
     )
@@ -74,7 +73,7 @@ def _shap_waterfall(shap_vals, feat_names, feat_vals, expected_val, title, n_top
 
 
 def render(svc, nav_to):
-    st.markdown("## 🔍  Explain a Prediction")
+    st.markdown("## 🔍  Why Was This Result Given?")
 
     results  = st.session_state.get("results_df")
     raw_df   = st.session_state.get("raw_df")
@@ -82,7 +81,7 @@ def render(svc, nav_to):
 
     if not analysis or results is None or raw_df is None:
         st.info(
-            "No analysis available. Go to **Analyze** first to upload a CSV and run detection.",
+            "No traffic analysis has been run yet. Please go to **Analyze** to check for threats first.",
             icon="📂",
         )
         if st.button("📂  Go to Analyze", type="primary", key="explain_goto_analyze"):
@@ -90,21 +89,22 @@ def render(svc, nav_to):
         return
 
     if not svc.status.can_predict_binary:
-        st.error("Models not loaded — explanation unavailable.")
+        st.error("Model artifacts are missing — explanation unavailable.")
         return
 
     st.caption(
-        "SHAP values show how much each feature contributes to this prediction. "
-        "🔴 Red pushes toward ATTACK · 🔵 Blue pushes toward BENIGN."
+        "Feature contributions show how individual network measurements influenced the detection decision. "
+        "🔴 Red indicates factors that increase the likelihood of **Threat Detected**, "
+        "while 🔵 Blue indicates factors that support **No Threat Detected**."
     )
     st.markdown("---")
 
     # ── Record selector ───────────────────────────────────────────────────────
     labels = []
     for _, row in results.iterrows():
-        tag = row["binary_label"]
+        tag = "Threat Detected" if row["binary_label"] == "ATTACK" else "No Threat Detected"
         cat = row.get("attack_category") or ""
-        lbl = f"Row {row['row_id']} — {tag}"
+        lbl = f"Record {row['row_id']} — {tag}"
         if cat and cat != "XGBoost Error":
             lbl += f" ({cat})"
         labels.append(lbl)
@@ -112,61 +112,65 @@ def render(svc, nav_to):
     max_idx = len(labels) - 1
     cur_idx = min(st.session_state.get("selected_row_idx", 0), max_idx)
 
-    chosen = st.selectbox("Select record:", labels, index=cur_idx, key="explain_sel")
+    chosen = st.selectbox("Select record to inspect:", labels, index=cur_idx, key="explain_sel")
     sel_idx = labels.index(chosen)
     st.session_state["selected_row_idx"] = sel_idx
 
     sel_result = results.iloc[sel_idx]
     binary_label = sel_result["binary_label"]
-    attack_proba = sel_result["attack_proba"]
+    attack_proba = float(sel_result["attack_proba"])
     row_id       = sel_result["row_id"]
 
     # ── Record summary cards ──────────────────────────────────────────────────
     d1, d2, d3, d4 = st.columns(4)
-    d1.metric("Row ID",     str(row_id))
-    d2.metric("Prediction", binary_label)
-    d3.metric("P(ATTACK)",  f"{attack_proba:.4f}")
+    d1.metric("Record ID", str(row_id))
+    display_pred = "Threat Detected" if binary_label == "ATTACK" else "No Threat Detected"
+    d2.metric("Prediction", display_pred)
+    d3.metric("Threat Probability", f"{attack_proba:.1%}")
+
     if binary_label == "ATTACK" and sel_result.get("attack_category"):
         cat = sel_result["attack_category"]
         if cat != "XGBoost Error":
-            d4.metric("Attack Category", cat)
+            d4.metric("Possible Attack Type", cat)
             if sel_result.get("category_proba"):
-                st.caption(f"Category score: {sel_result['category_proba']:.4f}")
+                st.caption(f"Attack type confidence: {float(sel_result['category_proba']):.1%}")
         else:
-            d4.warning("XGBoost error")
+            d4.warning("Classification unavailable")
     elif binary_label == "BENIGN":
-        d4.success("BENIGN — Stage 2 not invoked")
+        d4.success("Normal traffic — safe")
 
-    # Show preprocessed feature values on demand
+    # Feature values viewer
     sel_raw = raw_df.iloc[sel_idx: sel_idx + 1].copy()
-    with st.expander("Preprocessed feature values"):
+    with st.expander("📋  View Raw & Normalized Feature Values"):
         try:
             X_trans = svc.preprocess(sel_raw)
-            st.dataframe(
-                X_trans.T.rename(columns={X_trans.index[0]: "Scaled value"}),
-                width='stretch'
-            )
+            comp_df = pd.DataFrame({
+                "Feature Name": list(X_trans.columns),
+                "Normalized Value": [round(float(v), 4) for v in X_trans.iloc[0].values],
+            })
+            st.dataframe(comp_df, width='stretch', hide_index=True)
         except Exception as e:
-            st.warning(f"Could not display preprocessed values: {e}")
+            st.warning(f"Feature values display notice: {e}")
 
-    # ── Stage 1: RF SHAP ─────────────────────────────────────────────────────
+    # ── Stage 1: Threat Detection Factors (Random Forest) ─────────────────────
     st.markdown("---")
-    st.subheader("Stage 1 · Random Forest — Binary Detection")
+    st.subheader("Stage 1 · Threat Detection Factors")
+    st.caption("How network measurements influenced the decision between **Threat Detected** and **No Threat Detected**.")
 
-    with st.spinner("Computing RF SHAP values…"):
+    with st.spinner("Calculating feature contributions…"):
         try:
             X_trans = svc.preprocess(sel_raw)
             rf_exp  = svc.explain_rf_local(X_trans)
         except Exception as e:
             rf_exp = None
-            st.error(f"Preprocessing failed: {e}")
+            st.error(f"Explanation calculation notice: {e}")
 
     if rf_exp is not None:
-        n_top_rf = st.slider("Features to display (RF)", 5, 25, 12, key="shap_rf_n")
+        n_top_rf = st.slider("Number of top features to show", 5, 25, 10, key="shap_rf_n")
         fig_rf = _shap_waterfall(
             rf_exp["shap_values"], rf_exp["feature_names"],
             rf_exp["feature_values"], rf_exp["expected_value"],
-            title=f"RF SHAP — P(ATTACK) contributions  (Row {row_id})",
+            title=f"Feature Contributions for Record {row_id}",
             n_top=n_top_rf,
         )
         st.plotly_chart(fig_rf, width='stretch')
@@ -182,63 +186,63 @@ def render(svc, nav_to):
             k_top = max(1, min(int(n_top_rf), n_table))
             order = np.argsort(np.abs(sv_arr))[::-1][:k_top]
             shap_df = pd.DataFrame({
-                "Feature":           [f_names[int(i)] for i in order],
-                "Scaled Value":      [round(float(f_vals[int(i)]), 4) for i in order],
-                "SHAP Contribution": [round(float(sv_arr[int(i)]), 6) for i in order],
-                "Direction":         ["→ ATTACK" if sv_arr[int(i)] > 0 else "→ BENIGN" for i in order],
+                "Feature Name":      [f_names[int(i)] for i in order],
+                "Observed Value":    [round(float(f_vals[int(i)]), 4) for i in order],
+                "Contribution":      [round(float(sv_arr[int(i)]), 5) for i in order],
+                "Influence":         ["Pushes toward Threat Detected" if sv_arr[int(i)] > 0 else "Pushes toward No Threat Detected" for i in order],
             })
-            with st.expander("SHAP contribution table (RF)"):
+            with st.expander("Detailed Feature Contribution Table"):
                 st.dataframe(shap_df, width='stretch', hide_index=True)
 
         st.caption(
-            f"Base value: {rf_exp['expected_value']:.4f} · "
-            f"Explaining: P(ATTACK) · Model: {rf_exp['model']}"
+            f"Baseline Expected Value: {rf_exp['expected_value']:.4f} · "
+            "Evaluated by Random Forest detector."
         )
     else:
-        st.error("RF SHAP explanation could not be generated.")
+        st.warning("Could not generate feature contributions for this record.")
 
-    # ── Stage 2: XGBoost SHAP (only for ATTACK) ──────────────────────────────
+    # ── Stage 2: Attack Type Classification Factors (XGBoost) ─────────────────
     if binary_label == "ATTACK" and svc.status.xgb_ok:
         st.markdown("---")
-        st.subheader("Stage 2 · XGBoost — Attack Classification")
+        st.subheader("Stage 2 · Possible Attack Type Factors")
         cat_name = sel_result.get("attack_category") or ""
         if cat_name and cat_name != "XGBoost Error":
-            st.markdown(f"Explaining predicted class: **{cat_name}**")
+            st.markdown(f"Explaining factors indicating **Possible Attack Type: {cat_name}**")
 
-        with st.spinner("Computing XGBoost SHAP values…"):
+        with st.spinner("Calculating attack classification factors…"):
             try:
                 X_trans_xgb = svc.preprocess(sel_raw)
                 xgb_exp     = svc.explain_xgb_local(X_trans_xgb)
             except Exception as e:
                 xgb_exp = None
-                st.error(f"XGBoost SHAP error: {e}")
+                st.error(f"Attack classification explanation notice: {e}")
 
         if xgb_exp is not None:
             pred_class  = xgb_exp["predicted_class_name"]
             class_names = xgb_exp["class_names"]
-            sv_matrix   = xgb_exp["shap_values"]   # (n_features, n_classes)
+            sv_matrix   = xgb_exp["shap_values"]
             fnames      = xgb_exp["feature_names"]
             fvals       = xgb_exp["feature_values"]
             base_vals   = xgb_exp["expected_value"]
             pred_idx    = xgb_exp["predicted_class_idx"]
 
-            st.success(f"**Predicted attack category: {pred_class}**")
+            st.success(f"**Identified Attack Type:** {pred_class}")
 
             sv_pred = sv_matrix[:, pred_idx] if sv_matrix.ndim == 2 else sv_matrix
             base_ev = float(base_vals[pred_idx]) \
                 if hasattr(base_vals, "__len__") else float(base_vals)
 
-            n_top_xgb = st.slider("Features to display (XGBoost)", 5, 25, 12, key="shap_xgb_n")
+            n_top_xgb = st.slider("Number of top features to show (Attack Type)", 5, 25, 10, key="shap_xgb_n")
             fig_xgb = _shap_waterfall(
                 sv_pred, fnames, fvals, base_ev,
-                title=f"XGBoost SHAP — Class: {pred_class}  (Row {row_id})",
+                title=f"Attack Type Factors: {pred_class} (Record {row_id})",
                 n_top=n_top_xgb,
             )
             st.plotly_chart(fig_xgb, width='stretch')
 
             # Cross-class heatmap
             if sv_matrix.ndim == 2 and len(class_names) > 1:
-                with st.expander("SHAP values across all 13 attack classes"):
+                with st.expander("Compare Features Across All Attack Types"):
                     k_heat = min(10, len(fnames), sv_matrix.shape[0])
                     top10 = np.argsort(np.abs(sv_matrix[:len(fnames), :]).mean(axis=1))[::-1][:k_heat]
                     heat  = sv_matrix[top10, :]
@@ -250,37 +254,26 @@ def render(svc, nav_to):
                         texttemplate="%{text}",
                     ))
                     heat_fig.update_layout(
-                        title="Feature SHAP values × Attack Classes",
+                        title="Feature Influence Across Attack Types",
                         height=400, xaxis_tickangle=-35, template="plotly_white",
                     )
                     st.plotly_chart(heat_fig, width='stretch')
-
-            st.caption(f"Model: {xgb_exp['model']}")
         else:
-            st.warning(
-                "XGBoost SHAP could not be generated. "
-                "The binary ATTACK prediction above is still valid."
+            st.info(
+                "Attack type explanation could not be computed. The Threat Detected result above remains valid."
             )
 
     elif binary_label == "ATTACK" and not svc.status.xgb_ok:
         st.info(
-            "XGBoost not loaded — attack-category SHAP unavailable. "
-            "Binary ATTACK prediction is valid.",
+            "Attack classification model is not loaded. The Threat Detected result above remains valid.",
             icon="ℹ️",
         )
     else:
         st.info(
-            "This record is **BENIGN** — Stage 2 was not invoked. "
-            "Only the Random Forest explanation above is applicable.",
+            "This network record is **No Threat Detected (Safe)**. Attack classification is only performed when threats are detected.",
             icon="✅",
         )
 
-    st.divider()
-    st.caption(
-        "⚠️ SHAP values reflect learned model patterns, not causal relationships. "
-        "A high SHAP value means the model weighted that feature heavily — "
-        "it does not prove that feature caused the network attack."
-    )
-
+    st.markdown("<br>", unsafe_allow_html=True)
     if st.button("← Back to Results", key="explain_back"):
         nav_to("Results")

@@ -233,7 +233,8 @@ class InferenceService:
         self, df: pd.DataFrame
     ) -> Tuple[bool, List[str], List[str]]:
         """
-        Validate that df has the raw CIC-IDS2017 columns required by the preprocessor.
+        Validate that df contains the features required by the trained models.
+        Any extra columns are safely ignored.
 
         Returns:
             (is_valid, errors, warnings)
@@ -242,36 +243,40 @@ class InferenceService:
         warnings: List[str] = []
 
         if df.empty:
-            errors.append("Uploaded file contains no data rows.")
+            errors.append("The uploaded file contains no data rows.")
             return False, errors, warnings
 
         # Clean column names the same way the pipeline does
         df_cols = [clean_column_name(c) for c in df.columns]
 
-        if self.preprocessor is None:
-            errors.append("Preprocessor not loaded — cannot validate columns.")
-            return False, errors, warnings
+        # Features required by the trained models
+        required = self.get_required_features()
+        if not required:
+            if self.preprocessor is not None and hasattr(self.preprocessor, "feature_names_out_"):
+                required = self.preprocessor.feature_names_out_
+            else:
+                errors.append("Required model feature specifications are not loaded.")
+                return False, errors, warnings
 
-        required = self.preprocessor.feature_names_in_
         missing = [c for c in required if c not in df_cols]
         extra = [c for c in df_cols if c not in required and c != TARGET_COLUMN]
 
         if missing:
+            missing_preview = ", ".join(missing[:6])
+            suffix = f" (and {len(missing) - 6} more)" if len(missing) > 6 else ""
             errors.append(
-                f"{len(missing)} required feature column(s) are missing from the uploaded file: "
-                f"{missing[:10]}{'...' if len(missing) > 10 else ''}. "
-                "Please upload a raw CIC-IDS2017-format CSV."
+                f"Missing required network feature(s): {missing_preview}{suffix}. "
+                "Please ensure your CSV file includes all required features."
             )
 
         if extra:
             warnings.append(
-                f"{len(extra)} extra column(s) found (will be ignored): "
-                f"{extra[:10]}{'...' if len(extra) > 10 else ''}."
+                f"Notice: {len(extra)} extra column(s) detected. These will be safely ignored."
             )
 
         if TARGET_COLUMN in df_cols:
             warnings.append(
-                f"Column '{TARGET_COLUMN}' detected. It will be excluded from model inputs."
+                f"Column '{TARGET_COLUMN}' detected and excluded from analysis."
             )
 
         # Check for infinite values
@@ -279,11 +284,19 @@ class InferenceService:
         inf_cols = [c for c in numeric_df.columns if np.isinf(numeric_df[c]).any()]
         if inf_cols:
             warnings.append(
-                f"Infinite values found in {len(inf_cols)} column(s): {inf_cols[:5]}. "
-                "These will be replaced with column medians during preprocessing."
+                f"Extreme values detected in {len(inf_cols)} column(s). "
+                "These will be automatically replaced with standard baseline values during preprocessing."
             )
 
         return len(errors) == 0, errors, warnings
+
+    def get_required_features(self) -> List[str]:
+        """Return the list of features required by the trained models."""
+        if self.selected_features:
+            return list(self.selected_features)
+        if self.preprocessor is not None and hasattr(self.preprocessor, "feature_names_out_"):
+            return list(self.preprocessor.feature_names_out_)
+        return []
 
     # ── Preprocessing ──────────────────────────────────────────────────────────
 
