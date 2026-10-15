@@ -9,23 +9,48 @@ import plotly.graph_objects as go
 # ── SHAP waterfall helper ─────────────────────────────────────────────────────
 
 def _shap_waterfall(shap_vals, feat_names, feat_vals, expected_val, title, n_top=12):
-    sv = np.array(shap_vals).flatten()          # always 1-D regardless of SHAP output shape
-    feat_vals = list(np.array(feat_vals).flatten())
-    n_top = min(n_top, len(sv))
+    sv = np.asarray(shap_vals).reshape(-1)
+    feat_names = list(feat_names)
+    feat_vals = np.asarray(feat_vals).reshape(-1).tolist()
+
+    # Prevent feature-index errors if the explanation arrays differ in length.
+    n_features = min(len(sv), len(feat_names), len(feat_vals))
+    if n_features == 0:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No feature SHAP values available to display.",
+            xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False,
+            font=dict(size=12, color="#64748b"),
+        )
+        fig.update_layout(
+            title=dict(text=title, font_size=14),
+            height=320,
+            template="plotly_white",
+        )
+        return fig
+
+    sv = sv[:n_features]
+    feat_names = feat_names[:n_features]
+    feat_vals = feat_vals[:n_features]
+
+    n_top = max(1, min(int(n_top), n_features))
     order = np.argsort(np.abs(sv))[::-1][:n_top]
+
     names = [feat_names[int(i)] for i in order]
-    vals  = [float(sv[int(i)])  for i in order]
+    vals = [float(sv[int(i)]) for i in order]
     fvals = [float(feat_vals[int(i)]) for i in order]
 
-    # Sort by magnitude for readability
+    # Sort by contribution value for readability in horizontal bar chart
     srt = np.argsort(vals)
     names = [names[i] for i in srt]
-    vals  = [vals[i]  for i in srt]
+    vals = [vals[i] for i in srt]
     fvals = [fvals[i] for i in srt]
 
     colors = ["#ef4444" if v > 0 else "#3b82f6" for v in vals]
     ylabels = [f"{n}  <i style='color:#64748b'>({v:.3g})</i>"
                for n, v in zip(names, fvals)]
+
+    base_num = float(expected_val) if hasattr(expected_val, "__float__") or isinstance(expected_val, (int, float)) else 0.0
 
     fig = go.Figure(go.Bar(
         x=vals, y=ylabels, orientation="h",
@@ -41,7 +66,7 @@ def _shap_waterfall(shap_vals, feat_names, feat_vals, expected_val, title, n_top
         margin=dict(l=10, r=60, t=50, b=40),
         annotations=[dict(
             x=0.01, y=-0.12, xref="paper", yref="paper",
-            text=f"Base value: {expected_val:.4f}",
+            text=f"Base value: {base_num:.4f}",
             showarrow=False, font=dict(size=10, color="#94a3b8"),
         )],
     )
@@ -146,16 +171,24 @@ def render(svc, nav_to):
         )
         st.plotly_chart(fig_rf, width='stretch')
 
-        sv_arr = np.array(rf_exp["shap_values"])
-        order  = np.argsort(np.abs(sv_arr))[::-1][:n_top_rf]
-        shap_df = pd.DataFrame({
-            "Feature":           [rf_exp["feature_names"][i] for i in order],
-            "Scaled Value":      [round(rf_exp["feature_values"][i], 4)   for i in order],
-            "SHAP Contribution": [round(float(sv_arr[i]), 6)               for i in order],
-            "Direction":         ["→ ATTACK" if sv_arr[i] > 0 else "→ BENIGN" for i in order],
-        })
-        with st.expander("SHAP contribution table (RF)"):
-            st.dataframe(shap_df, width='stretch', hide_index=True)
+        sv_arr = np.asarray(rf_exp["shap_values"]).reshape(-1)
+        f_names = list(rf_exp.get("feature_names", []))
+        f_vals = np.asarray(rf_exp.get("feature_values", [])).reshape(-1)
+        n_table = min(len(sv_arr), len(f_names), len(f_vals))
+        if n_table > 0:
+            sv_arr = sv_arr[:n_table]
+            f_names = f_names[:n_table]
+            f_vals = f_vals[:n_table]
+            k_top = max(1, min(int(n_top_rf), n_table))
+            order = np.argsort(np.abs(sv_arr))[::-1][:k_top]
+            shap_df = pd.DataFrame({
+                "Feature":           [f_names[int(i)] for i in order],
+                "Scaled Value":      [round(float(f_vals[int(i)]), 4) for i in order],
+                "SHAP Contribution": [round(float(sv_arr[int(i)]), 6) for i in order],
+                "Direction":         ["→ ATTACK" if sv_arr[int(i)] > 0 else "→ BENIGN" for i in order],
+            })
+            with st.expander("SHAP contribution table (RF)"):
+                st.dataframe(shap_df, width='stretch', hide_index=True)
 
         st.caption(
             f"Base value: {rf_exp['expected_value']:.4f} · "
@@ -206,9 +239,10 @@ def render(svc, nav_to):
             # Cross-class heatmap
             if sv_matrix.ndim == 2 and len(class_names) > 1:
                 with st.expander("SHAP values across all 13 attack classes"):
-                    top10 = np.argsort(np.abs(sv_matrix).mean(axis=1))[::-1][:10]
+                    k_heat = min(10, len(fnames), sv_matrix.shape[0])
+                    top10 = np.argsort(np.abs(sv_matrix[:len(fnames), :]).mean(axis=1))[::-1][:k_heat]
                     heat  = sv_matrix[top10, :]
-                    hfeat = [fnames[i] for i in top10]
+                    hfeat = [fnames[int(i)] for i in top10]
                     heat_fig = go.Figure(go.Heatmap(
                         z=heat.tolist(), x=class_names, y=hfeat,
                         colorscale="RdBu_r", zmid=0,

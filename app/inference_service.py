@@ -445,20 +445,95 @@ class InferenceService:
             import shap
             if self.rf_detector is None:
                 return None
-            explainer = shap.TreeExplainer(self.rf_detector.model)
-            sv = explainer.shap_values(X_single_trans)
-            # For binary RF, shap_values returns [class0_vals, class1_vals]
-            if isinstance(sv, list) and len(sv) == 2:
-                sv_attack = sv[1][0]  # ATTACK class SHAP values for single row
-                base = explainer.expected_value[1] if hasattr(explainer.expected_value, "__len__") else explainer.expected_value
+
+            rf_model = getattr(self.rf_detector, "model", self.rf_detector)
+            classes = list(getattr(rf_model, "classes_", [0, 1]))
+
+            # Determine class index corresponding to ATTACK (class 1)
+            if 1 in classes:
+                attack_idx = classes.index(1)
+            elif "ATTACK" in [str(c).upper() for c in classes]:
+                attack_idx = [str(c).upper() for c in classes].index("ATTACK")
             else:
-                sv_attack = sv[0]
-                base = explainer.expected_value if not hasattr(explainer.expected_value, "__len__") else explainer.expected_value[0]
+                attack_idx = 1 if len(classes) > 1 else 0
+
+            explainer = shap.TreeExplainer(rf_model)
+            sv = explainer.shap_values(X_single_trans)
+            n_features = X_single_trans.shape[1]
+
+            # Handle different SHAP output formats across SHAP / sklearn versions
+            if isinstance(sv, list):
+                # List of class-specific arrays, e.g. [class0_vals, class1_vals]
+                if len(sv) > attack_idx:
+                    class_sv = np.asarray(sv[attack_idx])
+                elif len(sv) > 0:
+                    class_sv = np.asarray(sv[-1])
+                else:
+                    raise ValueError("Empty SHAP values list returned by TreeExplainer.")
+
+                if class_sv.ndim == 2:
+                    sv_attack = class_sv[0]
+                else:
+                    sv_attack = class_sv.reshape(-1)
+
+            elif isinstance(sv, np.ndarray):
+                if sv.ndim == 3:
+                    # Shape (n_samples, n_features, n_classes) or variations
+                    if sv.shape[1] == n_features and sv.shape[2] > 1:
+                        idx = attack_idx if sv.shape[2] > attack_idx else -1
+                        sv_attack = sv[0, :, idx]
+                    elif sv.shape[2] == n_features and sv.shape[0] > 1:
+                        idx = attack_idx if sv.shape[0] > attack_idx else -1
+                        sv_attack = sv[idx, 0, :]
+                    elif sv.shape[2] == n_features and sv.shape[1] > 1:
+                        idx = attack_idx if sv.shape[1] > attack_idx else -1
+                        sv_attack = sv[0, idx, :]
+                    else:
+                        idx = attack_idx if sv.shape[2] > attack_idx else 0
+                        sv_attack = sv[0, :, idx]
+                elif sv.ndim == 2:
+                    # Shape (n_features, n_classes), (n_samples, n_features), or (n_classes, n_features)
+                    if sv.shape[0] == n_features and sv.shape[1] > 1:
+                        idx = attack_idx if sv.shape[1] > attack_idx else -1
+                        sv_attack = sv[:, idx]
+                    elif sv.shape[1] == n_features and sv.shape[0] > 1:
+                        idx = attack_idx if sv.shape[0] > attack_idx else -1
+                        sv_attack = sv[idx, :]
+                    elif sv.shape[0] == 1 and sv.shape[1] == n_features:
+                        sv_attack = sv[0, :]
+                    elif sv.shape[1] == n_features:
+                        sv_attack = sv[0, :]
+                    else:
+                        sv_attack = sv.reshape(-1)[:n_features]
+                elif sv.ndim == 1:
+                    sv_attack = sv
+                else:
+                    sv_attack = sv.reshape(-1)[:n_features]
+            else:
+                sv_attack = np.asarray(sv).reshape(-1)[:n_features]
+
+            sv_attack = np.asarray(sv_attack, dtype=float).reshape(-1)
+            if len(sv_attack) > n_features:
+                sv_attack = sv_attack[:n_features]
+
+            # Select expected_value (base value) corresponding to ATTACK class
+            base_vals = explainer.expected_value
+            if isinstance(base_vals, (list, np.ndarray, tuple)):
+                base_arr = np.asarray(base_vals).reshape(-1)
+                if len(base_arr) > attack_idx:
+                    base = float(base_arr[attack_idx])
+                elif len(base_arr) > 0:
+                    base = float(base_arr[-1])
+                else:
+                    base = 0.0
+            else:
+                base = float(base_vals)
+
             return {
                 "shap_values": sv_attack,
                 "expected_value": float(base),
                 "feature_names": list(X_single_trans.columns),
-                "feature_values": X_single_trans.iloc[0].tolist(),
+                "feature_values": [float(v) for v in X_single_trans.iloc[0].tolist()],
                 "model": "Random Forest (Binary Detection)",
                 "class_explained": "P(ATTACK)",
             }
